@@ -490,7 +490,100 @@ void handleDownload() {
   Serial.println("CSV download completed");
 }
 
-// ---------- CHARTS PAGE ----------
+// ---------- CHARTS PAGE (Client-side processing) ----------
+void handleChartsClient() {
+  // Serve static HTML that processes CSV client-side
+  const char* html = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0">
+    <title>Solar Charts</title>
+    <style>
+        body{font-family:-apple-system,system-ui,Arial;background:#111;color:#eee;margin:10px;padding:0}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}
+        h1{font-size:24px;margin:10px 0}
+        .btn{border:1px solid #445;background:#223;color:#dbe7ff;border-radius:10px;padding:14px 18px;cursor:pointer;text-decoration:none;font-size:15px;font-weight:600}
+        .card{margin-top:14px;background:#1a1a2e;border:1px solid #333;border-radius:14px;padding:20px}
+        .tabs{display:flex;gap:8px;margin:8px 0}
+        .tab{padding:10px 14px;border:1px solid #3a3964;border-radius:10px;cursor:pointer;background:#2a2a4a;font-size:14px}
+        .tab.active{background:#334;border-color:#556}
+        canvas{width:100%;height:350px;background:#0f1730;border:1px solid #23335e;border-radius:10px;display:block}
+        .legend{margin-top:8px;color:#bcd0ff;font-size:13px}
+        .loading{text-align:center;padding:50px;color:#7fbfff}
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Solar Charts</h1>
+        <a href="/" class="btn">Back to Live</a>
+    </div>
+    <div class="card">
+        <div class="tabs">
+            <div id="tab-hourly" class="tab active" onclick="switchTab('hourly')">Hourly</div>
+            <div id="tab-daily" class="tab" onclick="switchTab('daily')">Daily</div>
+        </div>
+        <canvas id="chart"></canvas>
+        <div class="legend" id="legendText">Loading...</div>
+    </div>
+<script>
+let csvData=null,cvs,ctx;cvs=document.getElementById('chart');ctx=cvs.getContext('2d');
+async function fetchCSVData(){try{const r=await fetch('/download',{cache:'no-store'});const t=await r.text();
+const l=t.trim().split('\n');csvData=[];for(let i=1;i<l.length;i++){const ln=l[i].trim();
+if(ln.length===0)continue;const p=ln.split(',');if(p.length>=7){csvData.push({
+timestamp:p[0],power_mW:parseFloat(p[5])});}}return true;}catch(e){return false;}}
+function processHourlyData(){const hd=new Array(24).fill(0),hc=new Array(24).fill(0);
+const now=new Date(),ch=now.getHours();csvData.forEach(r=>{const tp=r.timestamp.indexOf('T');
+if(tp>0){const h=parseInt(r.timestamp.substring(tp+1,tp+3));if(!isNaN(h)&&h>=0&&h<24){
+hd[h]+=r.power_mW;hc[h]++;}}});const labels=[],values=[];for(let h=0;h<=ch&&h<24;h++){
+let l;if(h===0)l="12am";else if(h<12)l=h+"am";else if(h===12)l="12pm";else l=(h-12)+"pm";
+labels.push(l);values.push(hc[h]>0?(hd[h]/hc[h]/1000):0);}
+return{title:'Hourly avg power (W)',unit:'W',labels:labels,values:values};}
+function processDailyData(){const dd={};csvData.forEach(r=>{const tp=r.timestamp.indexOf('T');
+if(tp>0){const ds=r.timestamp.substring(0,tp);if(!dd[ds]){dd[ds]={sum:0,count:0};}
+dd[ds].sum+=r.power_mW;dd[ds].count++;}});const dates=Object.keys(dd).sort().slice(-7);
+const labels=[],values=[];dates.forEach(d=>{const p=d.split('-');if(p.length===3){
+labels.push(parseInt(p[1])+'/'+parseInt(p[2]));const ap=dd[d].sum/dd[d].count/1000;
+const h=(dd[d].count*5)/3600;values.push(ap*h);}});
+return{title:'Daily energy (Wh, 7d)',unit:'Wh',labels:labels,values:values};}
+function drawAxes(pd,yM,yL){const W=cvs.clientWidth,H=cvs.clientHeight;
+cvs.width=W*devicePixelRatio;cvs.height=H*devicePixelRatio;
+ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);ctx.clearRect(0,0,W,H);
+ctx.strokeStyle='#2b3b67';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(pd,10);
+ctx.lineTo(pd,H-pd);ctx.lineTo(W-10,H-pd);ctx.stroke();ctx.fillStyle='#9fb4ff';
+ctx.font='12px system-ui';ctx.fillText(yL,10,18);for(let i=0;i<=5;i++){
+const y=H-pd-(H-2*pd)*i/5,v=(yM*i/5).toFixed(1);ctx.fillText(v,W-pd+4,y+4);
+ctx.strokeStyle='#1f2b4d';ctx.beginPath();ctx.moveTo(pd,y);ctx.lineTo(W-10,y);ctx.stroke();}}
+function drawLine(lb,vl,cl,yL){const W=cvs.clientWidth,H=cvs.clientHeight,pd=40;
+const yM=Math.max(1,Math.max(...vl)*1.15);drawAxes(pd,yM,yL);const n=vl.length;
+if(n<1)return;const xS=(W-pd-20)/(n-1||1);ctx.strokeStyle=cl;ctx.lineWidth=2.5;
+ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();for(let i=0;i<n;i++){
+const x=pd+i*xS,y=H-pd-(H-2*pd)*(vl[i]/yM);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+ctx.stroke();ctx.globalAlpha=0.15;ctx.fillStyle=cl;ctx.beginPath();ctx.moveTo(pd,H-pd);
+for(let i=0;i<n;i++){const x=pd+i*xS,y=H-pd-(H-2*pd)*(vl[i]/yM);ctx.lineTo(x,y);}
+ctx.lineTo(pd+(n-1)*xS,H-pd);ctx.closePath();ctx.fill();ctx.globalAlpha=1;
+ctx.fillStyle='#fff';for(let i=0;i<n;i++){const x=pd+i*xS,y=H-pd-(H-2*pd)*(vl[i]/yM);
+ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill();ctx.strokeStyle=cl;
+ctx.lineWidth=1.5;ctx.stroke();}ctx.fillStyle='#bcd0ff';ctx.font='11px system-ui';
+const st=Math.max(1,Math.ceil(n/12));for(let i=0;i<n;i+=st){const x=pd+i*xS;
+ctx.save();ctx.translate(x,H-pd+12);ctx.rotate(-0.6);ctx.fillText(lb[i],0,0);ctx.restore();}}
+function switchTab(t){['hourly','daily'].forEach(n=>{const e=document.getElementById('tab-'+n);
+if(e)e.className='tab';});const at=document.getElementById('tab-'+t);
+if(at)at.className='tab active';if(!csvData)return;let d;
+if(t==='hourly')d=processHourlyData();else d=processDailyData();
+document.getElementById('legendText').textContent=d.title;
+drawLine(d.labels,d.values,'#3aa2ff',d.unit);}
+fetchCSVData().then(s=>{if(s)switchTab('hourly');});
+</script>
+</body>
+</html>
+)rawliteral";
+
+  server.send(200, "text/html", html);
+}
+
+// ---------- CHARTS PAGE (Old server-side processing - kept for reference) ----------
 void handleCharts() {
   String html = "<!DOCTYPE html><html><head><meta charset='utf-8'>"
                 "<meta name='viewport' content='width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0'>"
@@ -1063,7 +1156,7 @@ void setup() {
   server.on("/health", handleHealth);
   server.on("/ina219", handleINAregs);
   server.on("/download", handleDownload);
-  server.on("/charts", handleCharts);
+  server.on("/charts", handleChartsClient);  // Use client-side processing for better performance
   server.on("/agg/hourly", handleHourly);
   server.on("/agg/weekly", handleWeekly);
   server.on("/agg/daily", handleDaily);

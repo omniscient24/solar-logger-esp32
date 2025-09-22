@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0">
+    <title>Solar Charts</title>
+    <style>
+        body {
+            font-family: -apple-system, system-ui, Arial;
+            background: #111;
+            color: #eee;
+            margin: 10px;
+            padding: 0;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        h1 {
+            font-size: 24px;
+            margin: 10px 0;
+        }
+        .btn {
+            border: 1px solid #445;
+            background: #223;
+            color: #dbe7ff;
+            border-radius: 10px;
+            padding: 14px 18px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 15px;
+            font-weight: 600;
+        }
+        .card {
+            margin-top: 14px;
+            background: #1a1a2e;
+            border: 1px solid #333;
+            border-radius: 14px;
+            padding: 20px;
+        }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin: 8px 0;
+        }
+        .tab {
+            padding: 10px 14px;
+            border: 1px solid #3a3964;
+            border-radius: 10px;
+            cursor: pointer;
+            background: #2a2a4a;
+            font-size: 14px;
+        }
+        .tab.active {
+            background: #334;
+            border-color: #556;
+        }
+        canvas {
+            width: 100%;
+            height: 350px;
+            background: #0f1730;
+            border: 1px solid #23335e;
+            border-radius: 10px;
+            display: block;
+        }
+        .legend {
+            margin-top: 8px;
+            color: #bcd0ff;
+            font-size: 13px;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #7fbfff;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Solar Charts</h1>
+        <a href="/" class="btn">Back to Live</a>
+    </div>
+
+    <div class="card">
+        <div class="tabs">
+            <div id="tab-hourly" class="tab active" onclick="switchTab('hourly')">Hourly (today)</div>
+            <div id="tab-daily" class="tab" onclick="switchTab('daily')">Daily (7d)</div>
+            <div id="tab-weekly" class="tab" onclick="switchTab('weekly')">Weekly</div>
+            <div id="tab-monthly" class="tab" onclick="switchTab('monthly')">Monthly</div>
+        </div>
+        <canvas id="chart"></canvas>
+        <div class="legend" id="legendText">Loading data...</div>
+    </div>
+
+    <script>
+        let csvData = null;
+        let cvs, ctx;
+
+        // Initialize canvas
+        cvs = document.getElementById('chart');
+        ctx = cvs.getContext('2d');
+
+        // Fetch and cache CSV data once
+        async function fetchCSVData() {
+            try {
+                const response = await fetch('/download', {cache: 'no-store'});
+                const text = await response.text();
+
+                // Parse CSV
+                const lines = text.trim().split('\n');
+                csvData = [];
+
+                // Skip header
+                for(let i = 1; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (line.length === 0) continue;
+
+                    const parts = line.split(',');
+                    if (parts.length >= 7) {
+                        csvData.push({
+                            timestamp: parts[0],
+                            voltage_source: parseFloat(parts[1]),
+                            voltage_load: parseFloat(parts[2]),
+                            shunt_mV: parseFloat(parts[3]),
+                            current_mA: parseFloat(parts[4]),
+                            power_mW: parseFloat(parts[5]),
+                            energy_Wh: parseFloat(parts[6])
+                        });
+                    }
+                }
+
+                console.log(`Loaded ${csvData.length} data points`);
+                return true;
+            } catch(e) {
+                console.error('Failed to fetch CSV:', e);
+                document.getElementById('legendText').textContent = 'Failed to load data';
+                return false;
+            }
+        }
+
+        // Process hourly data
+        function processHourlyData() {
+            const hourlyData = new Array(24).fill(0);
+            const hourlyCounts = new Array(24).fill(0);
+
+            const now = new Date();
+            const currentHour = now.getHours();
+
+            csvData.forEach(row => {
+                // Extract hour from timestamp "2025-09-21T10:13:45"
+                const tPos = row.timestamp.indexOf('T');
+                if (tPos > 0) {
+                    const timeStr = row.timestamp.substring(tPos + 1);
+                    const hour = parseInt(timeStr.substring(0, 2));
+                    if (!isNaN(hour) && hour >= 0 && hour < 24) {
+                        hourlyData[hour] += row.power_mW;
+                        hourlyCounts[hour]++;
+                    }
+                }
+            });
+
+            // Calculate averages and create labels/values up to current hour
+            const labels = [];
+            const values = [];
+
+            for(let h = 0; h <= currentHour && h < 24; h++) {
+                // 12-hour format
+                let label;
+                if (h === 0) label = "12am";
+                else if (h < 12) label = h + "am";
+                else if (h === 12) label = "12pm";
+                else label = (h - 12) + "pm";
+
+                labels.push(label);
+                values.push(hourlyCounts[h] > 0 ? (hourlyData[h] / hourlyCounts[h] / 1000.0) : 0); // Convert to W
+            }
+
+            return {
+                title: 'Hourly avg power (W)',
+                unit: 'W',
+                labels: labels,
+                values: values
+            };
+        }
+
+        // Process daily data
+        function processDailyData() {
+            const dailyData = {};
+
+            csvData.forEach(row => {
+                // Extract date from timestamp "2025-09-21T10:13:45"
+                const tPos = row.timestamp.indexOf('T');
+                if (tPos > 0) {
+                    const dateStr = row.timestamp.substring(0, tPos);
+                    if (!dailyData[dateStr]) {
+                        dailyData[dateStr] = {
+                            sum: 0,
+                            count: 0
+                        };
+                    }
+                    dailyData[dateStr].sum += row.power_mW;
+                    dailyData[dateStr].count++;
+                }
+            });
+
+            // Get last 7 days
+            const dates = Object.keys(dailyData).sort().slice(-7);
+            const labels = [];
+            const values = [];
+
+            dates.forEach(date => {
+                // Format date as MM/DD
+                const parts = date.split('-');
+                if (parts.length === 3) {
+                    labels.push(parseInt(parts[1]) + '/' + parseInt(parts[2]));
+                    // Calculate daily energy (Wh)
+                    const avgPower = dailyData[date].sum / dailyData[date].count / 1000.0; // W
+                    const hours = (dailyData[date].count * 5) / 3600.0; // 5 second samples
+                    values.push(avgPower * hours);
+                }
+            });
+
+            return {
+                title: 'Daily energy (Wh, 7d)',
+                unit: 'Wh',
+                labels: labels,
+                values: values
+            };
+        }
+
+        // Drawing functions
+        function drawAxes(pad, yMax, yLabel) {
+            const W = cvs.clientWidth, H = cvs.clientHeight;
+            cvs.width = W * devicePixelRatio;
+            cvs.height = H * devicePixelRatio;
+            ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+            ctx.clearRect(0, 0, W, H);
+
+            ctx.strokeStyle = '#2b3b67';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(pad, 10);
+            ctx.lineTo(pad, H - pad);
+            ctx.lineTo(W - 10, H - pad);
+            ctx.stroke();
+
+            ctx.fillStyle = '#9fb4ff';
+            ctx.font = '12px system-ui';
+            ctx.fillText(yLabel, 10, 18);
+
+            for(let i = 0; i <= 5; i++) {
+                const y = H - pad - (H - 2 * pad) * i / 5;
+                const v = (yMax * i / 5).toFixed(1);
+                ctx.fillText(v, W - pad + 4, y + 4);
+                ctx.strokeStyle = '#1f2b4d';
+                ctx.beginPath();
+                ctx.moveTo(pad, y);
+                ctx.lineTo(W - 10, y);
+                ctx.stroke();
+            }
+        }
+
+        function drawLine(labels, values, color, yLabel) {
+            const W = cvs.clientWidth, H = cvs.clientHeight, pad = 40;
+            const yMax = Math.max(1, Math.max(...values) * 1.15);
+            drawAxes(pad, yMax, yLabel);
+
+            const n = values.length;
+            if(n < 1) return;
+
+            const xStep = (W - pad - 20) / (n - 1 || 1);
+
+            // Draw line
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2.5;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            for(let i = 0; i < n; i++) {
+                const x = pad + i * xStep;
+                const y = H - pad - (H - 2 * pad) * (values[i] / yMax);
+                if(i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw area fill
+            ctx.globalAlpha = 0.15;
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(pad, H - pad);
+            for(let i = 0; i < n; i++) {
+                const x = pad + i * xStep;
+                const y = H - pad - (H - 2 * pad) * (values[i] / yMax);
+                ctx.lineTo(x, y);
+            }
+            ctx.lineTo(pad + (n - 1) * xStep, H - pad);
+            ctx.closePath();
+            ctx.fill();
+            ctx.globalAlpha = 1;
+
+            // Draw points
+            ctx.fillStyle = '#fff';
+            for(let i = 0; i < n; i++) {
+                const x = pad + i * xStep;
+                const y = H - pad - (H - 2 * pad) * (values[i] / yMax);
+                ctx.beginPath();
+                ctx.arc(x, y, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
+
+            // Draw labels
+            ctx.fillStyle = '#bcd0ff';
+            ctx.font = '11px system-ui';
+            const step = Math.max(1, Math.ceil(n / 12));
+            for(let i = 0; i < n; i += step) {
+                const x = pad + i * xStep;
+                ctx.save();
+                ctx.translate(x, H - pad + 12);
+                ctx.rotate(-0.6);
+                ctx.fillText(labels[i], 0, 0);
+                ctx.restore();
+            }
+        }
+
+        // Tab switching
+        function switchTab(tabName) {
+            const tabs = ['hourly', 'daily', 'weekly', 'monthly'];
+            tabs.forEach(t => {
+                const el = document.getElementById('tab-' + t);
+                if(el) el.className = 'tab';
+            });
+            const activeTab = document.getElementById('tab-' + tabName);
+            if(activeTab) activeTab.className = 'tab active';
+
+            if(!csvData) return;
+
+            let data;
+            switch(tabName) {
+                case 'hourly':
+                    data = processHourlyData();
+                    break;
+                case 'daily':
+                    data = processDailyData();
+                    break;
+                case 'weekly':
+                    // Placeholder for now
+                    data = {
+                        title: 'Weekly energy (Wh, 7d)',
+                        unit: 'Wh',
+                        labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                        values: [0, 0, 0, 0, 0, 0, 0]
+                    };
+                    break;
+                case 'monthly':
+                    // Placeholder for now
+                    data = {
+                        title: 'Monthly energy (Wh, 12m)',
+                        unit: 'Wh',
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+                        values: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+                    };
+                    break;
+            }
+
+            document.getElementById('legendText').textContent = data.title;
+            drawLine(data.labels, data.values, '#3aa2ff', data.unit);
+        }
+
+        // Initialize
+        fetchCSVData().then(success => {
+            if(success) {
+                switchTab('hourly');
+            }
+        });
+    </script>
+</body>
+</html>
