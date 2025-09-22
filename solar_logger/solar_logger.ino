@@ -851,8 +851,6 @@ function drawLine(lb,vl,cl,yL){
   }
 }
 
-let currentTab='hourly';
-
 function switchTab(t){
   currentTab=t;
   ['hourly','daily','weekly','monthly'].forEach(n=>{
