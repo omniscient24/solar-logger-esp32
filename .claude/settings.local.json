@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(arduino-cli board:*)",
+      "Bash(arduino-cli monitor:*)",
+      "Bash(arduino-cli compile:*)",
+      "Bash(arduino-cli upload:*)",
+      "Bash(arduino-cli core:*)",
+      "Bash(pkill:*)",
+      "Read(//tmp/**)",
+      "Bash(python3:*)",
+      "Read(//private/var/folders/**)",
+      "Read(//Users/marcdebrey/Library/Arduino15/**)",
+      "Read(//Users/marcdebrey/**)",
+      "WebSearch",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

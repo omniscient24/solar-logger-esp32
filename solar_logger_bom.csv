@@ -1,0 +1,25 @@
+Section,Item,Qty,Notes
+Required,EF EcoFlow 175 W solar panel (existing),1,"~18–22 V, ~10 A max (provided by user)"
+Required,MC4 inline fuse holder + 10 A fuse,1 + spares,Install on PV+ near entry; spare fuses recommended
+Required,50 A / 75 mV shunt resistor (0.0015 Ω),1,Bolt-down style; ring terminals on power path
+Required,INA226 current/voltage sensor breakout,1,I²C interface; connect VIN+/VIN− across shunt
+Required,ESP32 DevKit (Wi‑Fi),1,DOIT/NodeMCU style; USB power for dev
+Required,microSD card module (SPI),1,"CS=GPIO5, MOSI=23, MISO=19, SCK=18"
+Required,"microSD card (8–32 GB, FAT32)",1,Holds CSV logs
+Required,"DC‑DC buck converter, 6–36 V → 5 V, ≥5 A (USB‑A out preferred)",1,Waterproof/rugged module recommended for margin
+Required,"USB NiMH AA/AAA smart charger (e.g., Tenergy TN480U)",1,"USB‑powered; independent channels, ΔV termination"
+Required,"AA NiMH cells, low‑self‑discharge (2000–2500 mAh)",4–8,Eneloop‑class recommended for best results
+Required,MC4 to bare‑wire adapters or MC4 extension leads,As needed,For bringing PV into enclosure
+Required,PV cable (10–12 AWG) for panel run,As needed,Size to keep <5–8% voltage drop
+Required,22–24 AWG twisted pair (sense wires),2–3 m,From shunt screws to INA226 VIN+/VIN−
+Required,Jumper wires / Dupont leads,Assorted,ESP32 ↔ INA226/microSD
+Required,Ring terminals sized to shunt screws and cable gauge,4,Two for power path; extras for spares
+Required,USB‑A to micro‑USB cable (or as needed by charger),1,Buck USB‑A → Charger input
+Required,Electronics enclosure (vented),1,"Holds ESP32, INA226, SD, buck; keep dry"
+Required,Heat‑shrink tubing & electrical tape,Assorted,Insulate shunt lugs and terminations
+Required,Cable glands / strain relief,2–4,Entry points for PV and low‑voltage wiring
+Required,Small terminal blocks or perfboard,1,For tidy internal connections
+Optional,DC disconnect / breaker (10–15 A) for PV+,1,Convenient indoor shutoff
+Optional,TVS diode (SMBJ33A) across PV+ ↔ PV−,1,Transient suppression near entry
+Optional,USB wall adapter to power ESP32 during development,1,Lets you test logger independent of sun
+Optional,"Standoffs, screws, adhesive mounts, zip ties",Assorted,Mechanical mounting and cable management
