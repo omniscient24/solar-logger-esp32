@@ -542,7 +542,7 @@ void handleChartsClient() {
             <div id="tab-weekly" class="tab" onclick="switchTab('weekly')">Weekly</div>
             <div id="tab-monthly" class="tab" onclick="switchTab('monthly')">Monthly</div>
         </div>
-        <div class="toggle-container">
+        <div class="toggle-container" id="toggleContainer" style="display:none;">
             <span class="toggle-label">Show Cumulative</span>
             <div class="toggle-switch" id="cumulativeToggle" onclick="toggleCumulative()">
                 <div class="toggle-slider"></div>
@@ -859,6 +859,14 @@ function switchTab(t){
   });
   const at=document.getElementById('tab-'+t);
   if(at)at.className='tab active';
+
+  // Show/hide toggle based on tab
+  const toggleContainer=document.getElementById('toggleContainer');
+  if(t==='hourly'){
+    toggleContainer.style.display='none';
+  }else{
+    toggleContainer.style.display='flex';
+  }
 
   if(!csvData)return;
 
