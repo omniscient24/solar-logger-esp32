@@ -559,8 +559,6 @@ void handleChartsClient() {
 let csvData=null,cvs,ctx;
 let showCumulative=false;
 let currentTab='hourly';
-cvs=document.getElementById('chart');
-ctx=cvs.getContext('2d');
 
 function toggleCumulative(){
   showCumulative = !showCumulative;
@@ -888,17 +886,23 @@ function switchTab(t){
   drawLine(d.labels,d.values,'#3aa2ff',d.unit);
 }
 
-fetchCSVData().then(s=>{
-  if(s){
-    switchTab('hourly');
-    // Hide loading overlay after chart is drawn
-    setTimeout(()=>{
-      document.getElementById('loadingOverlay').classList.add('hidden');
-    }, 100);
-  }else{
-    // Show error but hide spinner
-    document.getElementById('loadingOverlay').innerHTML = '<div style="color:#ff6b6b;font-size:18px">Failed to load data</div><div style="margin-top:10px;color:#bcd0ff">Please refresh the page</div>';
-  }
+// Initialize after DOM is ready
+window.addEventListener('DOMContentLoaded', function() {
+  cvs=document.getElementById('chart');
+  ctx=cvs.getContext('2d');
+  // Start fetching data
+  fetchCSVData().then(s=>{
+    if(s){
+      switchTab('hourly');
+      // Hide loading overlay after chart is drawn
+      setTimeout(()=>{
+        document.getElementById('loadingOverlay').classList.add('hidden');
+      }, 100);
+    }else{
+      // Show error but hide spinner
+      document.getElementById('loadingOverlay').innerHTML = '<div style="color:#ff6b6b;font-size:18px">Failed to load data</div><div style="margin-top:10px;color:#bcd0ff">Please refresh the page</div>';
+    }
+  });
 });
 </script>
 </body>
