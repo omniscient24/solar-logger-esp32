@@ -493,7 +493,7 @@ void handleDownload() {
 // ---------- CHARTS PAGE (Client-side processing) ----------
 void handleChartsClient() {
   // Serve static HTML that processes CSV client-side
-  const char* html = R"rawliteral(
+  String html = R"rawliteral(
 <!DOCTYPE html>
 <html>
 <head>
@@ -551,6 +551,10 @@ void handleChartsClient() {
         <canvas id="chart"></canvas>
         <div class="legend" id="legendText">Loading...</div>
     </div>
+)rawliteral";
+
+  // Split the large literal to avoid compiler limits
+  html += R"rawliteral(
 <script>
 let csvData=null,cvs,ctx;
 let showCumulative=false;
@@ -901,7 +905,7 @@ fetchCSVData().then(s=>{
 </html>
 )rawliteral";
 
-  server.send(200, "text/html", html);
+  server.send(200, "text/html", html.c_str());
 }
 
 // ---------- CHARTS PAGE (Old server-side processing - kept for reference) ----------
