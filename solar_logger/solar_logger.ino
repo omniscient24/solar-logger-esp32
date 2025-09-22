@@ -509,6 +509,12 @@ void handleChartsClient() {
         .tabs{display:flex;gap:8px;margin:8px 0}
         .tab{padding:10px 14px;border:1px solid #3a3964;border-radius:10px;cursor:pointer;background:#2a2a4a;font-size:14px}
         .tab.active{background:#334;border-color:#556}
+        .toggle-container{display:flex;justify-content:flex-end;margin-bottom:10px;align-items:center;gap:10px}
+        .toggle-label{color:#7fbfff;font-size:14px}
+        .toggle-switch{position:relative;width:60px;height:28px;background:#23335e;border-radius:14px;cursor:pointer;transition:background 0.3s}
+        .toggle-switch.active{background:#3aa2ff}
+        .toggle-slider{position:absolute;top:3px;left:3px;width:22px;height:22px;background:#fff;border-radius:11px;transition:left 0.3s}
+        .toggle-switch.active .toggle-slider{left:35px}
         canvas{width:100%;height:350px;background:#0f1730;border:1px solid #23335e;border-radius:10px;display:block}
         .legend{margin-top:8px;color:#bcd0ff;font-size:13px}
         .loading-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(26,26,46,0.95);display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:14px;z-index:1000}
@@ -536,13 +542,32 @@ void handleChartsClient() {
             <div id="tab-weekly" class="tab" onclick="switchTab('weekly')">Weekly</div>
             <div id="tab-monthly" class="tab" onclick="switchTab('monthly')">Monthly</div>
         </div>
+        <div class="toggle-container">
+            <span class="toggle-label">Show Cumulative</span>
+            <div class="toggle-switch" id="cumulativeToggle" onclick="toggleCumulative()">
+                <div class="toggle-slider"></div>
+            </div>
+        </div>
         <canvas id="chart"></canvas>
         <div class="legend" id="legendText">Loading...</div>
     </div>
 <script>
 let csvData=null,cvs,ctx;
+let showCumulative=false;
+let currentTab='hourly';
 cvs=document.getElementById('chart');
 ctx=cvs.getContext('2d');
+
+function toggleCumulative(){
+  showCumulative = !showCumulative;
+  const toggle = document.getElementById('cumulativeToggle');
+  if(showCumulative){
+    toggle.classList.add('active');
+  }else{
+    toggle.classList.remove('active');
+  }
+  switchTab(currentTab);
+}
 
 async function fetchCSVData(){
   try{
@@ -622,29 +647,37 @@ function processDailyData(){
     const tp=r.timestamp.indexOf('T');
     if(tp>0){
       const ds=r.timestamp.substring(0,tp);
-      if(!dd[ds]){dd[ds]={sum:0,count:0};}
-      dd[ds].sum+=r.power_mW;
+      if(!dd[ds]){dd[ds]={totalEnergy:0,count:0};}
+      // Each reading represents 5 seconds of generation
+      const energyWh = (r.power_mW / 1000) * (5 / 3600); // Convert mW to W, then W * hours
+      dd[ds].totalEnergy += energyWh;
       dd[ds].count++;
     }
   });
 
   const dates=Object.keys(dd).sort().slice(-7);
   const labels=[],values=[];
+
+  let cumulativeTotal = 0;
   dates.forEach(d=>{
     const p=d.split('-');
     if(p.length===3){
       labels.push(parseInt(p[1])+'/'+parseInt(p[2]));
-      const ap=dd[d].sum/dd[d].count/1000;
-      const h=(dd[d].count*5)/3600;
-      values.push(ap*h);
+      if(showCumulative){
+        cumulativeTotal += dd[d].totalEnergy;
+        values.push(cumulativeTotal);
+      }else{
+        values.push(dd[d].totalEnergy);
+      }
     }
   });
-  return{title:'Daily energy (Wh, 7d)',unit:'Wh',labels:labels,values:values};
+
+  const title = showCumulative ? 'Cumulative energy (Wh, 7d)' : 'Daily energy (Wh, 7d)';
+  return{title:title,unit:'Wh',labels:labels,values:values};
 }
 
 function processWeeklyData(){
   const wd=new Array(7).fill(0);
-  const wc=new Array(7).fill(0);
   const dayNames=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
   csvData.forEach(r=>{
@@ -654,26 +687,29 @@ function processWeeklyData(){
       const dt=new Date(ds);
       const dow=dt.getDay();
       if(!isNaN(dow)){
-        wd[dow]+=r.power_mW;
-        wc[dow]++;
+        const energyWh = (r.power_mW / 1000) * (5 / 3600);
+        wd[dow] += energyWh;
       }
     }
   });
 
   const today=new Date().getDay();
   const labels=[],values=[];
+  let cumulativeTotal = 0;
+
   for(let i=0;i<7;i++){
     const idx=(today-6+i+7)%7;
     labels.push(dayNames[idx]);
-    if(wc[idx]>0){
-      const ap=wd[idx]/wc[idx]/1000;
-      const h=(wc[idx]*5)/3600;
-      values.push(ap*h);
+    if(showCumulative){
+      cumulativeTotal += wd[idx];
+      values.push(cumulativeTotal);
     }else{
-      values.push(0);
+      values.push(wd[idx]);
     }
   }
-  return{title:'Weekly energy (Wh)',unit:'Wh',labels:labels,values:values};
+
+  const title = showCumulative ? 'Cumulative weekly energy (Wh)' : 'Weekly energy (Wh)';
+  return{title:title,unit:'Wh',labels:labels,values:values};
 }
 
 function processMonthlyData(){
@@ -695,17 +731,28 @@ function processMonthlyData(){
   });
 
   const labels=[],values=[];
+  let cumulativeTotal=0;
+
   for(let m=0;m<12;m++){
     labels.push(monthNames[m]);
     if(mc[m]>0){
       const ap=md[m]/mc[m]/1000;
       const h=(mc[m]*5)/3600;
-      values.push(ap*h);
+      const energyWh=ap*h;
+
+      if(showCumulative){
+        cumulativeTotal+=energyWh;
+        values.push(cumulativeTotal);
+      }else{
+        values.push(energyWh);
+      }
     }else{
-      values.push(0);
+      values.push(showCumulative?cumulativeTotal:0);
     }
   }
-  return{title:'Monthly energy (Wh)',unit:'Wh',labels:labels,values:values};
+
+  const title=showCumulative?'Cumulative monthly energy (Wh)':'Monthly energy (Wh)';
+  return{title:title,unit:'Wh',labels:labels,values:values};
 }
 
 function drawAxes(pd,yM,yL){
@@ -802,7 +849,10 @@ function drawLine(lb,vl,cl,yL){
   }
 }
 
+let currentTab='hourly';
+
 function switchTab(t){
+  currentTab=t;
   ['hourly','daily','weekly','monthly'].forEach(n=>{
     const e=document.getElementById('tab-'+n);
     if(e)e.className='tab';

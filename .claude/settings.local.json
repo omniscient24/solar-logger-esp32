@@ -19,7 +19,8 @@
       "mcp__github__create_repository",
       "Bash(gh auth:*)",
       "Bash(gh repo create:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Read(//dev/**)"
     ],
     "deny": [],
     "ask": []
