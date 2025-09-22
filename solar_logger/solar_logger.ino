@@ -509,7 +509,7 @@ void handleChartsClient() {
         .tabs{display:flex;gap:8px;margin:8px 0}
         .tab{padding:10px 14px;border:1px solid #3a3964;border-radius:10px;cursor:pointer;background:#2a2a4a;font-size:14px}
         .tab.active{background:#334;border-color:#556}
-        .toggle-container{display:flex;justify-content:flex-end;margin-bottom:10px;align-items:center;gap:10px}
+        .toggle-container{display:flex;justify-content:flex-end;margin:15px 0;align-items:center;gap:10px;padding:10px;background:#0f1730;border:1px solid #3a3964;border-radius:10px}
         .toggle-label{color:#7fbfff;font-size:14px}
         .toggle-switch{position:relative;width:60px;height:28px;background:#23335e;border-radius:14px;cursor:pointer;transition:background 0.3s}
         .toggle-switch.active{background:#3aa2ff}
@@ -864,8 +864,10 @@ function switchTab(t){
   const toggleContainer=document.getElementById('toggleContainer');
   if(t==='hourly'){
     toggleContainer.style.display='none';
+    console.log('Hiding toggle for hourly tab');
   }else{
     toggleContainer.style.display='flex';
+    console.log('Showing toggle for ' + t + ' tab');
   }
 
   if(!csvData)return;

@@ -20,7 +20,8 @@
       "Bash(gh auth:*)",
       "Bash(gh repo create:*)",
       "Bash(git push:*)",
-      "Read(//dev/**)"
+      "Read(//dev/**)",
+      "Bash(open /Users/marcdebrey/Solar/solar_logger/test_charts.html)"
     ],
     "deny": [],
     "ask": []
