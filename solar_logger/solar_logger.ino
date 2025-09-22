@@ -631,6 +631,8 @@ function processHourlyData(){
   });
 
   const labels=[],values=[];
+  let cumulativeTotal=0;
+
   for(let h=0;h<=ch&&h<24;h++){
     let l;
     if(h===0)l="12am";
@@ -638,9 +640,25 @@ function processHourlyData(){
     else if(h===12)l="12pm";
     else l=(h-12)+"pm";
     labels.push(l);
-    values.push(hc[h]>0?(hd[h]/hc[h]/1000):0);
+
+    if(showCumulative){
+      // For cumulative, calculate energy (Wh) for each hour and accumulate
+      if(hc[h]>0){
+        const avgPower = hd[h]/hc[h]/1000; // Average power in W
+        const hours = (hc[h]*5)/3600; // Number of hours of data
+        const energyWh = avgPower * hours;
+        cumulativeTotal += energyWh;
+      }
+      values.push(cumulativeTotal);
+    }else{
+      // Show average power for the hour
+      values.push(hc[h]>0?(hd[h]/hc[h]/1000):0);
+    }
   }
-  return{title:'Hourly avg power (W)',unit:'W',labels:labels,values:values};
+
+  const title = showCumulative ? 'Cumulative hourly energy (Wh)' : 'Hourly avg power (W)';
+  const unit = showCumulative ? 'Wh' : 'W';
+  return{title:title,unit:unit,labels:labels,values:values};
 }
 
 function processDailyData(){
@@ -860,15 +878,10 @@ function switchTab(t){
   const at=document.getElementById('tab-'+t);
   if(at)at.className='tab active';
 
-  // Show/hide toggle based on tab
+  // Show toggle for all tabs
   const toggleContainer=document.getElementById('toggleContainer');
-  if(t==='hourly'){
-    toggleContainer.style.display='none';
-    console.log('Hiding toggle for hourly tab');
-  }else{
-    toggleContainer.style.display='flex';
-    console.log('Showing toggle for ' + t + ' tab');
-  }
+  toggleContainer.style.display='flex';
+  console.log('Showing toggle for ' + t + ' tab');
 
   if(!csvData)return;
 
