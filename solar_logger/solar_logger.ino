@@ -308,6 +308,16 @@ void handleRoot() {
 
   html += "</div>";
 
+  // Power Gauge Card
+  html += "<div class='card' style='margin-top:12px;padding:30px'>";
+  html += "<div class='label' style='text-align:center'>Power Generation Status</div>";
+  html += "<canvas id='gauge' width='300' height='180' style='display:block;margin:20px auto;max-width:100%'></canvas>";
+  html += "<div style='text-align:center'>";
+  html += "<div class='value' style='font-size:48px'><span id='gaugeValue'>" + safeStr(power_mW/1000.0f, 1) + "</span><span class='unit'> W</span></div>";
+  html += "<div class='label' id='gaugeLabel' style='font-size:16px;margin-top:10px'>Loading...</div>";
+  html += "</div>";
+  html += "</div>";
+
   html += "<hr>";
   html += "<div class='aim'>";
   html += "<h2>Aim Mode (Audio Feedback)</h2>";
@@ -382,10 +392,87 @@ void handleRoot() {
           "    document.getElementById('p').textContent = w.toFixed(3);"
           "    document.getElementById('e').textContent = e.toFixed(3);"
           "    setToneFromWatts(w);"
+          "    drawGauge(w);"
+          "    document.getElementById('gaugeValue').textContent = w.toFixed(1);"
           "  }catch(e){}"
           "  setTimeout(poll, 500);"
           "}"
-          "poll();"
+          ""
+          "// Draw power gauge"
+          "function drawGauge(watts) {"
+          "  const canvas = document.getElementById('gauge');"
+          "  if (!canvas) return;"
+          "  const ctx = canvas.getContext('2d');"
+          "  const width = canvas.width;"
+          "  const height = canvas.height;"
+          "  const centerX = width / 2;"
+          "  const centerY = height - 20;"
+          "  const radius = Math.min(width, height) * 0.4;"
+          ""
+          "  // Clear canvas"
+          "  ctx.clearRect(0, 0, width, height);"
+          ""
+          "  // Max power for scale (175W panel)"
+          "  const maxPower = 175;"
+          "  const power = Math.min(watts, maxPower);"
+          "  const ratio = power / maxPower;"
+          ""
+          "  // Draw arc segments (Low, Fair, Good, Excellent)"
+          "  const startAngle = Math.PI;"
+          "  const endAngle = 0;"
+          "  const segments = ["
+          "    {start: 0, end: 0.25, color: '#d32f2f', label: 'Low'},"
+          "    {start: 0.25, end: 0.5, color: '#ffa726', label: 'Fair'},"
+          "    {start: 0.5, end: 0.75, color: '#42a5f5', label: 'Good'},"
+          "    {start: 0.75, end: 1, color: '#66bb6a', label: 'Excellent'}"
+          "  ];"
+          ""
+          "  // Draw segments"
+          "  segments.forEach(seg => {"
+          "    ctx.beginPath();"
+          "    ctx.arc(centerX, centerY,"
+          "      radius,"
+          "      startAngle + (seg.start * (endAngle - startAngle)),"
+          "      startAngle + (seg.end * (endAngle - startAngle)),"
+          "      false"
+          "    );"
+          "    ctx.strokeStyle = seg.color;"
+          "    ctx.lineWidth = 20;"
+          "    ctx.stroke();"
+          "  });"
+          ""
+          "  // Draw needle"
+          "  const needleAngle = startAngle + (ratio * (endAngle - startAngle));"
+          "  ctx.save();"
+          "  ctx.translate(centerX, centerY);"
+          "  ctx.rotate(needleAngle);"
+          "  ctx.beginPath();"
+          "  ctx.moveTo(0, 0);"
+          "  ctx.lineTo(radius - 10, 0);"
+          "  ctx.strokeStyle = '#ffffff';"
+          "  ctx.lineWidth = 3;"
+          "  ctx.stroke();"
+          "  ctx.beginPath();"
+          "  ctx.arc(0, 0, 8, 0, Math.PI * 2);"
+          "  ctx.fillStyle = '#ffffff';"
+          "  ctx.fill();"
+          "  ctx.restore();"
+          ""
+          "  // Update label"
+          "  let status = 'Low';"
+          "  if (ratio > 0.75) status = 'Excellent';"
+          "  else if (ratio > 0.5) status = 'Good';"
+          "  else if (ratio > 0.25) status = 'Fair';"
+          "  document.getElementById('gaugeLabel').textContent = status;"
+          "  document.getElementById('gaugeLabel').style.color = segments.find(s => s.label === status).color;"
+          "}"
+          ""
+          "// Draw initial gauge and start polling"
+          "setTimeout(() => {"
+          "  const initialPower = parseFloat(document.getElementById('p').textContent) || 0;"
+          "  drawGauge(initialPower);"
+          "  poll();"
+          "}, 100);"
           "</script>";
 
   html += "</body></html>";
