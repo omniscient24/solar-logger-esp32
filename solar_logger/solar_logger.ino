@@ -308,13 +308,17 @@ void handleRoot() {
 
   html += "</div>";
 
-  // Power Gauge Card
+  // Power Status Card (simplified - no canvas)
   html += "<div class='card' style='margin-top:12px;padding:30px'>";
   html += "<div class='label' style='text-align:center'>Power Generation Status</div>";
-  html += "<canvas id='gauge' width='300' height='180' style='display:block;margin:20px auto;max-width:100%'></canvas>";
+  html += "<div style='margin:20px auto;width:90%;max-width:400px'>";
+  html += "<div style='background:#23335e;border-radius:10px;height:40px;position:relative;overflow:hidden'>";
+  html += "<div id='powerBar' style='background:linear-gradient(90deg,#d32f2f,#ffa726,#42a5f5,#66bb6a);height:100%;width:" + String(min(100, (int)(power_mW/175000.0f * 100))) + "%;transition:width 0.5s'></div>";
+  html += "</div>";
+  html += "</div>";
   html += "<div style='text-align:center'>";
   html += "<div class='value' style='font-size:48px'><span id='gaugeValue'>" + safeStr(power_mW/1000.0f, 1) + "</span><span class='unit'> W</span></div>";
-  html += "<div class='label' id='gaugeLabel' style='font-size:16px;margin-top:10px'>Loading...</div>";
+  html += "<div class='label' id='gaugeLabel' style='font-size:16px;margin-top:10px'>Calculating...</div>";
   html += "</div>";
   html += "</div>";
 
@@ -340,140 +344,85 @@ void handleRoot() {
   html += "</div>";
   html += "</div>";
 
-  html += "<script>"
-          "let audioCtx=null, osc=null, gainNode=null, aiming=false, muted=false;"
-          "let maxW=0.0;"
-          ""
-          "function ensureAudio(){"
-          "  if(audioCtx) return true;"
-          "  try{"
-          "    audioCtx=new (window.AudioContext||window.webkitAudioContext)();"
-          "    gainNode=audioCtx.createGain(); gainNode.gain.value=0.0;"
-          "    osc=audioCtx.createOscillator(); osc.type='sine'; osc.frequency.value=220;"
-          "    osc.connect(gainNode).connect(audioCtx.destination); osc.start();"
-          "    return true;"
-          "  }catch(e){ return false; }"
-          "}"
-          ""
-          "function setToneFromWatts(w){"
-          "  if(!aiming || !audioCtx) return;"
-          "  if(w>maxW) maxW=w;"
-          "  const n=Math.max(0,Math.min(1, w/(maxW||1)));"
-          "  const f=220 + Math.pow(n,0.6)*1000;"
-          "  const g=muted?0:(0.12 + 0.04*n);"
-          "  osc.frequency.setTargetAtTime(f, audioCtx.currentTime, 0.02);"
-          "  gainNode.gain.setTargetAtTime(g, audioCtx.currentTime, 0.03);"
-          "  document.getElementById('peak').textContent = 'Peak: ' + maxW.toFixed(1) + ' W';"
-          "}"
-          ""
-          "document.getElementById('aimBtn').onclick=async ()=>{"
-          "  if(!audioCtx){"
-          "    if(!ensureAudio()){ alert('Web Audio not available'); return; }"
-          "    if(audioCtx.state==='suspended'){ try{ await audioCtx.resume(); }catch(e){} }"
-          "  }"
-          "  aiming=!aiming;"
-          "  if(!aiming && gainNode){ gainNode.gain.value=0.0; }"
-          "  document.getElementById('aimBtn').textContent = aiming?'Disable Aim Mode':'Enable Aim Mode';"
-          "  document.getElementById('aimState').textContent = 'Audio: ' + (aiming?'on':'off');"
-          "};"
-          ""
-          "document.getElementById('muteBtn').onclick=()=>{"
-          "  muted=!muted;"
-          "  document.getElementById('muteBtn').textContent=muted?'Unmute':'Mute';"
-          "};"
-          ""
-          "// Draw power gauge"
-          "function drawGauge(watts) {"
-          "  const canvas = document.getElementById('gauge');"
-          "  if (!canvas) return;"
-          "  const ctx = canvas.getContext('2d');"
-          "  const width = canvas.width;"
-          "  const height = canvas.height;"
-          "  const centerX = width / 2;"
-          "  const centerY = height - 20;"
-          "  const radius = Math.min(width, height) * 0.4;"
-          ""
-          "  // Clear canvas"
-          "  ctx.clearRect(0, 0, width, height);"
-          ""
-          "  // Max power for scale (175W panel)"
-          "  const maxPower = 175;"
-          "  const power = Math.min(watts, maxPower);"
-          "  const ratio = power / maxPower;"
-          ""
-          "  // Draw arc segments (Low, Fair, Good, Excellent)"
-          "  const startAngle = Math.PI;"
-          "  const endAngle = 0;"
-          "  const segments = ["
-          "    {start: 0, end: 0.25, color: '#d32f2f', label: 'Low'},"
-          "    {start: 0.25, end: 0.5, color: '#ffa726', label: 'Fair'},"
-          "    {start: 0.5, end: 0.75, color: '#42a5f5', label: 'Good'},"
-          "    {start: 0.75, end: 1, color: '#66bb6a', label: 'Excellent'}"
-          "  ];"
-          ""
-          "  // Draw segments"
-          "  segments.forEach(seg => {"
-          "    ctx.beginPath();"
-          "    ctx.arc(centerX, centerY,"
-          "      radius,"
-          "      startAngle + (seg.start * (endAngle - startAngle)),"
-          "      startAngle + (seg.end * (endAngle - startAngle)),"
-          "      false"
-          "    );"
-          "    ctx.strokeStyle = seg.color;"
-          "    ctx.lineWidth = 20;"
-          "    ctx.stroke();"
-          "  });"
-          ""
-          "  // Draw needle"
-          "  const needleAngle = startAngle + (ratio * (endAngle - startAngle));"
-          "  ctx.save();"
-          "  ctx.translate(centerX, centerY);"
-          "  ctx.rotate(needleAngle);"
-          "  ctx.beginPath();"
-          "  ctx.moveTo(0, 0);"
-          "  ctx.lineTo(radius - 10, 0);"
-          "  ctx.strokeStyle = '#ffffff';"
-          "  ctx.lineWidth = 3;"
-          "  ctx.stroke();"
-          "  ctx.beginPath();"
-          "  ctx.arc(0, 0, 8, 0, Math.PI * 2);"
-          "  ctx.fillStyle = '#ffffff';"
-          "  ctx.fill();"
-          "  ctx.restore();"
-          ""
-          "  // Update label"
-          "  let status = 'Low';"
-          "  if (ratio > 0.75) status = 'Excellent';"
-          "  else if (ratio > 0.5) status = 'Good';"
-          "  else if (ratio > 0.25) status = 'Fair';"
-          "  document.getElementById('gaugeLabel').textContent = status;"
-          "  document.getElementById('gaugeLabel').style.color = segments.find(s => s.label === status).color;"
-          "}"
-          ""
-          "async function poll(){"
-          "  try{"
-          "    const r=await fetch('/data',{cache:'no-store'});"
-          "    const j=await r.json();"
-          "    const v=j.voltage_source||0, a=j.current_mA/1000||0, w=j.power_mW/1000||0, e=j.energy_today_Wh||0;"
-          "    document.getElementById('v').textContent = v.toFixed(3);"
-          "    document.getElementById('i').textContent = a.toFixed(3);"
-          "    document.getElementById('p').textContent = w.toFixed(3);"
-          "    document.getElementById('e').textContent = e.toFixed(3);"
-          "    setToneFromWatts(w);"
-          "    drawGauge(w);"
-          "    document.getElementById('gaugeValue').textContent = w.toFixed(1);"
-          "  }catch(e){}"
-          "  setTimeout(poll, 500);"
-          "}"
-          ""
-          "// Draw initial gauge and start polling"
-          "setTimeout(() => {"
-          "  const initialPower = parseFloat(document.getElementById('p').textContent) || 0;"
-          "  drawGauge(initialPower);"
-          "  poll();"
-          "}, 100);"
-          "</script>";
+  // Simple working update script
+  html += "<script>";
+  html += "setInterval(function(){";
+  html += "  fetch('/data').then(r=>r.json()).then(data=>{";
+  html += "    document.getElementById('v').textContent=(data.voltage_source||0).toFixed(3);";
+  html += "    document.getElementById('i').textContent=((data.current_mA||0)/1000).toFixed(3);";
+  html += "    document.getElementById('p').textContent=((data.power_mW||0)/1000).toFixed(3);";
+  html += "    document.getElementById('e').textContent=(data.energy_today_Wh||0).toFixed(3);";
+  html += "    var watts=(data.power_mW||0)/1000;";
+  html += "    window.currentWatts=watts;"; // Share watts value for audio
+  html += "    document.getElementById('gaugeValue').textContent=watts.toFixed(1);";
+  html += "    var percent=Math.min(100,Math.round(watts/175*100));";
+  html += "    document.getElementById('powerBar').style.width=percent+'%';";
+  html += "    var status='Low',color='#d32f2f';";
+  html += "    if(percent>75){status='Excellent';color='#66bb6a';}";
+  html += "    else if(percent>50){status='Good';color='#42a5f5';}";
+  html += "    else if(percent>25){status='Fair';color='#ffa726';}";
+  html += "    var label=document.getElementById('gaugeLabel');";
+  html += "    if(label){label.textContent=status+' ('+percent+'% of max)';label.style.color=color;}";
+  html += "  }).catch(e=>console.error('Error:',e));";
+  html += "}, 1000);";
+  html += "</script>";
+
+  // Separate script for Aim Mode audio
+  html += "<script>";
+  html += "var audioCtx=null,osc=null,gainNode=null,aiming=false,muted=false,maxW=0.0;";
+  html += "window.currentWatts=0;"; // Global variable to share watts value
+
+  html += "function initAudio(){";
+  html += "  if(audioCtx) return true;";
+  html += "  try{";
+  html += "    audioCtx=new(window.AudioContext||window.webkitAudioContext)();";
+  html += "    gainNode=audioCtx.createGain();";
+  html += "    gainNode.gain.value=0.0;";
+  html += "    osc=audioCtx.createOscillator();";
+  html += "    osc.type='sine';";
+  html += "    osc.frequency.value=220;";
+  html += "    osc.connect(gainNode).connect(audioCtx.destination);";
+  html += "    osc.start();";
+  html += "    return true;";
+  html += "  }catch(e){";
+  html += "    console.error('Audio init failed:',e);";
+  html += "    return false;";
+  html += "  }";
+  html += "}";
+
+  html += "function updateAudioTone(){";
+  html += "  if(!aiming||!audioCtx) return;";
+  html += "  var w=window.currentWatts||0;";
+  html += "  if(w>maxW){maxW=w;document.getElementById('peak').textContent='Peak: '+maxW.toFixed(1)+' W';}";
+  html += "  var norm=Math.max(0,Math.min(1,w/(maxW||1)));";
+  html += "  var freq=220+Math.pow(norm,0.6)*1000;";
+  html += "  var vol=muted?0:(0.12+0.04*norm);";
+  html += "  osc.frequency.setTargetAtTime(freq,audioCtx.currentTime,0.02);";
+  html += "  gainNode.gain.setTargetAtTime(vol,audioCtx.currentTime,0.03);";
+  html += "}";
+
+  html += "setInterval(updateAudioTone,100);"; // Update audio 10 times per second
+
+  html += "window.addEventListener('load',function(){";
+  html += "  document.getElementById('aimBtn').onclick=function(){";
+  html += "    if(!audioCtx&&!initAudio()){";
+  html += "      alert('Audio not available');";
+  html += "      return;";
+  html += "    }";
+  html += "    if(audioCtx.state==='suspended'){";
+  html += "      audioCtx.resume();";
+  html += "    }";
+  html += "    aiming=!aiming;";
+  html += "    if(!aiming&&gainNode){gainNode.gain.value=0.0;}";
+  html += "    document.getElementById('aimBtn').textContent=aiming?'Disable Aim Mode':'Enable Aim Mode';";
+  html += "    document.getElementById('aimState').textContent='Audio: '+(aiming?'on':'off');";
+  html += "  };";
+  html += "  document.getElementById('muteBtn').onclick=function(){";
+  html += "    muted=!muted;";
+  html += "    document.getElementById('muteBtn').textContent=muted?'Unmute':'Mute';";
+  html += "  };";
+  html += "});";
+  html += "</script>";
 
   html += "</body></html>";
 
